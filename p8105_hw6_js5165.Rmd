@@ -69,7 +69,18 @@ city_glm = tibble(city_state = unique(homicide$city_state)) %>%
 ### Plot that shows the estimated ORs and CIs for each city
 
 ```{r p1_4}
-
+city_glm %>%
+  mutate(city_state = fct_reorder(city_state, OR)) %>% 
+  ggplot(aes(x = city_state, y = OR)) +
+  geom_point() +
+  geom_errorbar(mapping = aes(ymin = conf_low, ymax = conf_high)) + 
+  labs(
+    title = "Estimate OR for Solving Homicides Comparing Non-white Victims to White Victims in Each City",
+    x = "City, State",
+    y = "OR"
+    ) +
+  theme(axis.text.x = element_text(angle = 90, size = 7),
+        title = element_text(size = 9))
 
 ```
 
