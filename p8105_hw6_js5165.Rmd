@@ -21,17 +21,28 @@ homicide = read_csv("./homicide-data.csv") %>%
          victim_race = fct_relevel(ifelse(victim_race == 'White', 'white', 'non-white'), 'white'),
          victim_age = as.numeric(victim_age),
          victim_sex = as.factor(victim_sex),
-         resolved = as.numeric(disposition == "Closed by arrest")) %>% 
-  filter(!city_state %in% c("Dallas, TX", "Phoenix, AZ", "Kansas City, MO", "Tulsa, AL")) 
+         resolved = as.numeric(disposition == 'Closed by arrest')) %>% 
+  filter(!city_state %in% c('Dallas, TX', 'Phoenix, AZ', 'Kansas City, MO', 'Tulsa, AL')) 
 
 ```
 
-Read and tidy data
+### Obtain the estimate and confidence interval of the adjusted odds ratio in Baltimore
 
 ```{r p1}
-homicide %>% 
-  select(uid, victim_race, victim_age, victim_sex, city_state, resolved)
+baltimore_glm = homicide %>% 
+  select(uid, victim_race, victim_age, victim_sex, city_state, resolved) %>% 
+  filter(city_state == 'Baltimore, MD') %>% 
+  glm(resolved ~ victim_age + victim_sex + victim_race, data = ., family = binomial()) 
 
+save(baltimore_glm, file = 'Baltimore_logistic.RData')
+
+baltimore_glm %>% broom::tidy() %>% 
+  mutate(OR = exp(estimate),
+         conf_low = exp(estimate - 1.96*std.error),
+         conf_high = exp(estimate + 1.96*std.error)) %>% 
+  filter(term == "victim_racenon-white") %>% 
+  dplyr::select(term, estimate, OR, conf_low, conf_high, p.value) %>% 
+  knitr::kable(digits = 2)
 ```
 
 
