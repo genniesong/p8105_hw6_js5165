@@ -7,24 +7,34 @@ output: github_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
 ```
 
-## R Markdown
+## Problem 1
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+### Read and tidy data
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r p1}
+homicide = read_csv("./homicide-data.csv") %>% 
+  janitor::clean_names() %>% 
+  mutate(city_state = paste(paste0(city, ","), state),
+         victim_race = fct_relevel(ifelse(victim_race == 'White', 'white', 'non-white'), 'white'),
+         victim_age = as.numeric(victim_age),
+         victim_sex = as.factor(victim_sex),
+         resolved = as.numeric(disposition == "Closed by arrest")) %>% 
+  filter(!city_state %in% c("Dallas, TX", "Phoenix, AZ", "Kansas City, MO", "Tulsa, AL")) 
 
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+Read and tidy data
 
-You can also embed plots, for example:
+```{r p1}
+homicide %>% 
+  select(uid, victim_race, victim_age, victim_sex, city_state, resolved)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+
