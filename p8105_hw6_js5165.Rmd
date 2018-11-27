@@ -14,7 +14,7 @@ library(tidyverse)
 
 ### Read and tidy data
 
-```{r p1}
+```{r p1_1}
 homicide = read_csv("./homicide-data.csv") %>% 
   janitor::clean_names() %>% 
   mutate(city_state = paste(paste0(city, ","), state),
@@ -26,13 +26,13 @@ homicide = read_csv("./homicide-data.csv") %>%
 
 ```
 
-### Obtain the estimate and confidence interval of the adjusted odds ratio in Baltimore
+### Obtain the estimate and confidence interval for Baltimore
 
-```{r p1}
+```{r p1_2}
 baltimore_glm = homicide %>% 
   select(uid, victim_race, victim_age, victim_sex, city_state, resolved) %>% 
   filter(city_state == 'Baltimore, MD') %>% 
-  glm(resolved ~ victim_age + victim_sex + victim_race, data = ., family = binomial()) 
+  glm(resolved ~ victim_age + victim_sex + victim_race, data =., family = binomial()) 
 
 save(baltimore_glm, file = 'Baltimore_logistic.RData')
 
@@ -44,6 +44,36 @@ baltimore_glm %>% broom::tidy() %>%
   dplyr::select(term, estimate, OR, conf_low, conf_high, p.value) %>% 
   knitr::kable(digits = 2)
 ```
+
+### Obtain the estimate and confidence interval for each city
+
+```{r p1_3}
+all_glm = function(x){
+  homicide %>% 
+  filter(city_state == x) %>% 
+  glm(resolved ~ victim_age + victim_sex + victim_race, data =., family = binomial())  %>% 
+  broom::tidy() %>% 
+  mutate(OR = exp(estimate),
+         conf_low = exp(estimate - 1.96*std.error),
+         conf_high = exp(estimate + 1.96*std.error)) %>% 
+    filter(term == "victim_racenon-white") %>% 
+    dplyr::select(beta = estimate, OR, conf_low, conf_high, p.value)
+  }
+
+city_glm = tibble(city_state = unique(homicide$city_state)) %>% 
+  mutate(map(.x = unique(homicide$city_state), ~all_glm(.x))) %>% 
+  unnest
+
+```
+
+### Plot that shows the estimated ORs and CIs for each city
+
+```{r p1_4}
+
+
+```
+
+
 
 
 
