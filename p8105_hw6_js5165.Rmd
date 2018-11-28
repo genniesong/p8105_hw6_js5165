@@ -8,6 +8,9 @@ output: github_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(psych)
+library(modelr)
+theme_set(theme_bw())
 ```
 
 ## Problem 1
@@ -15,7 +18,7 @@ library(tidyverse)
 ### Read and tidy data
 
 ```{r p1_1}
-homicide = read_csv("./homicide-data.csv") %>% 
+homicide = read_csv('./homicide-data.csv') %>% 
   janitor::clean_names() %>% 
   mutate(city_state = paste(paste0(city, ","), state),
          victim_race = fct_relevel(ifelse(victim_race == 'White', 'white', 'non-white'), 'white'),
@@ -40,9 +43,9 @@ baltimore_glm %>% broom::tidy() %>%
   mutate(OR = exp(estimate),
          conf_low = exp(estimate - 1.96*std.error),
          conf_high = exp(estimate + 1.96*std.error)) %>% 
-  filter(term == "victim_racenon-white") %>% 
+  filter(term == 'victim_racenon-white') %>% 
   dplyr::select(term, estimate, OR, conf_low, conf_high, p.value) %>% 
-  knitr::kable(digits = 2)
+  knitr::kable(digits = 3)
 ```
 
 ### Obtain the estimate and confidence interval for each city
@@ -56,7 +59,7 @@ all_glm = function(x){
   mutate(OR = exp(estimate),
          conf_low = exp(estimate - 1.96*std.error),
          conf_high = exp(estimate + 1.96*std.error)) %>% 
-    filter(term == "victim_racenon-white") %>% 
+    filter(term == 'victim_racenon-white') %>% 
     dplyr::select(beta = estimate, OR, conf_low, conf_high, p.value)
   }
 
@@ -75,18 +78,103 @@ city_glm %>%
   geom_point() +
   geom_errorbar(mapping = aes(ymin = conf_low, ymax = conf_high)) + 
   labs(
-    title = "Estimate OR for Solving Homicides Comparing Non-white Victims to White Victims in Each City",
-    x = "City, State",
-    y = "OR"
+    title = 'Estimate OR for Solving Homicides Comparing Non-white Victims to White Victims in Each City',
+    x = 'City, State',
+    y = 'Estimate OR'
     ) +
   theme(axis.text.x = element_text(angle = 90, size = 7),
         title = element_text(size = 9))
 
 ```
 
+All the cities except Durham, Birmingham and Tampa, the estimate ratio are all lower than 1, which indicates the lower odds of solving homicides in non-white victims compared to in white victims. But we also need to consider about the 95% CI when giving our result.
 
 
+## Problem 2
 
+### Read and tidy data
 
+```{r p2_1}
+birthweight = read_csv('./birthweight.csv') %>% 
+  janitor::clean_names() %>% 
+  mutate(babysex = as.factor(babysex),
+         frace = as.factor(frace),
+         malform = as.factor(malform),
+         mrace = as.factor(mrace))
+describe(birthweight)
 
+```
+
+There is no missing data in the dataset. 
+I am going to use step-wise selection, which is a data-driven model-building process.
+
+### Selecting predictors for my model
+
+```{r p2_2 stepwise}
+full_model = lm(bwt ~ ., data = birthweight)
+step(full_model, direction='both',trace = 0)
+```
+
+Then we got 11 predictors in our model: babysex, bhead, blength, delwt, fincome, gaweeks, mheight, mrace, parity, ppwt and smoken
+
+Combining previous study result (G. LETAMO: FACTORS INFLUENCING LOW BIRTH WEIGHT AND PREMATURITY; Christopher S.: Maternal characteristics influencing birth weight and infant weight gain in the first 6 weeks post-partum), I chose 6 variables into my model: mother’s weight at delivery, mother’s race, gestational age in weeks, mother’s height, family monthly income, and average number of cigarettes smoked per day during pregnancy.
+
+```{r p2_2 assumption}
+model = lm(bwt ~ delwt + fincome + gaweeks + mheight + mrace + smoken, data = birthweight)
+summary(model)
+
+#check assumption
+par(mfrow = c(2,2))
+plot(model)
+```
+
+We can see that the normal Q-Q plot is linear, the assumption is not violated.
+
+```{r p2_2 res_fit}
+res_fit = birthweight %>% 
+  add_predictions(model) %>% 
+  add_residuals(model)
+ggplot(res_fit, aes(x = pred, y = resid)) +
+    geom_point() +
+    labs(
+      title = 'Residual vs. Fit',
+      x = 'Prediction',
+      y = 'Residual'
+      )
+```
+
+We can see the residuls are clustered. The model still need to be refined.
+
+### Model Comparison
+
+```{r p2_3}
+cv = birthweight %>% 
+  crossv_mc(100)
+cv_compare = cv %>% 
+  mutate(model_1 = map(train, ~lm(bwt ~ blength + gaweeks, data = .)),
+         model_2 = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead*babysex + bhead*blength + blength*babysex + bhead*babysex*blength, data = .)),
+         model = map(train, ~lm(bwt ~ delwt + fincome + gaweeks + mheight + mrace + smoken, data = .)),
+         rmse_model_1 = map2_dbl(model_1, test, ~rmse(.x, .y)),
+         rmse_model_2 = map2_dbl(model_2, test, ~rmse(.x, .y)),
+         rmse_model = map2_dbl(model, test, ~rmse(.x, .y)))
+```
+
+## Comparison Using Plot
+
+```{r p2_4}
+cv_compare %>% 
+  select(starts_with('rmse')) %>% 
+  gather(key = model, value = rmse, rmse_model_1:rmse_model) %>% 
+  mutate(model = str_replace(model, 'rmse_', ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + 
+  geom_violin() + 
+  labs(
+    title = "Prediction error distribution for models",
+    x = "Model",
+    y = "RMSE"
+   )
+```
+
+Based on the violin plot, model 2 has the smallest RMSE; I will choose this model to predict birth weight among the three.
 
